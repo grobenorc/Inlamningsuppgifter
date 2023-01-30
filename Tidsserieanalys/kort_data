@@ -1,0 +1,534 @@
+setwd("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAH14 Tidsserieanalys/Inlämningar/Inlämningsuppgift_1")
+
+library(tidyverse)
+library(lubridate)
+library(readr)
+library(ggplot2)
+library(ggpubr)
+library(ggseas)
+library(ggthemes)
+library(ggfortify)
+library(ggplottimeseries)
+library(zoo)
+library(xts)
+library(seasonal)
+library(forecast)
+library(TSA)
+library(TTR)
+library(tseries)
+library(fpp2)
+library(TSstudio)
+library(scales)
+library(graphics)
+library(IRdisplay)
+library(DescTools)
+library(stargazer)
+library(fitdistrplus)
+library(loess)
+library(reshape2)
+library(egg)
+
+
+data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+data.dag     <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+data.vecka   <- read_rds("Data/r_datafiler/kort/kort.data.vecka.rds")
+data.manad   <- read_rds("Data/r_datafiler/kort/kort.data.manad.rds")
+
+#### Snabb lm -----
+lm_timme  <- lm(Grader ~ time(Datum), data = data_timvis)
+lm_dag    <- lm(Medeltemperatur ~ time(Datum), data = data_dag)
+lm_vecka  <- lm(Medeltemperatur ~ time(Datum), data = data_vecka)
+
+stargazer(list(lm_timme, lm_dag, lm_vecka), 
+          caption = "Regressionsstatistik enkel linjär regression, kort data med olika grupperingar", 
+          label = "tab:summeringsstatistik_lm_kort_data",
+          font.size = "footnotesize")
+
+rm(lm_timme, lm_dag, lm_vecka, lm_vecka)
+
+
+##### Tidsserieobjekt -----
+Y.timme <- ts(data.timme$Grader, frequency = 24)
+Y.dag <- ts(data.dag$Medeltemperatur, frequency = 1)
+Y.vecka <- ts(data.vecka$Medeltemperatur, frequency = 1/7)
+
+
+
+###### Inledande visualisering -----http://127.0.0.1:31949/graphics/plot_zoom_png?width=1920&height=1032
+plot_oversikt_olika_intervall <- function(){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  data.dag     <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  data.vecka   <- read_rds("Data/r_datafiler/kort/kort.data.vecka.rds")
+  
+  p.vecka <- ggplot(data = data.vecka, aes(x = as.numeric(Vecka), y =  Medeltemperatur)) +
+    geom_line() +
+    geom_smooth(method = "loess") +
+    geom_smooth(method = "lm", col = "red", se = FALSE) +
+    scale_colour_manual(name="legend", values=c("blue", "red")) +
+    #labs(title = "Temperaturmätningar 2022/09 - 2022/12", y = expression(Y_t), x = "Vecka") + 
+    theme_minimal() + 
+    theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank())
+  
+  p.dag <-  ggplot(data = data.dag, aes(x = Datum, y =  Medeltemperatur)) +
+    geom_line() +
+    geom_smooth(method = "loess") +
+    geom_smooth(method = "lm", col = "red", se = FALSE) +
+    scale_colour_manual(name="legend", values=c("blue", "red")) +
+    #labs(title = "Temperaturmätningar 2022/09 - 2022/12", y = expression(Y_t), x = "Månad") + 
+    theme_minimal() + 
+    theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.ontop = FALSE)
+  
+  p.timme <- ggplot(data = data.timme, aes(x = Datum, y =  Grader)) +
+    geom_line() +
+    geom_smooth(method = "loess") +
+    geom_smooth(method = "lm", col = "red", se = FALSE) +
+    scale_colour_manual(name="legend", values=c("blue", "red")) +
+    #labs(title = "Temperaturmätningar 2022/09 - 2022/12", y = expression(Y_t), x = "Månad") + 
+    theme_minimal() + 
+    theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.ontop = FALSE)
+  
+  p.arrange <- ggarrange(p.vecka, p.dag, p.timme,
+                         ncol = 1, nrow = 3,
+                         top=textGrob("Temperatur med olika grupperingar", gp=gpar(fontsize=20,font=6)),
+                         left = textGrob("Temperatur (°C)", rot = 90, vjust = 0.5, gp = gpar(cex = 1.3, font=6)))
+  
+  ggsave("img/Kortsiktig/desk/timeline_kort_olika_intervall.png", p.arrange)
+  p.arrange
+}
+
+linjar_olika_frekvens <- function(){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  data.dag     <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  data.vecka   <- read_rds("Data/r_datafiler/kort/kort.data.vecka.rds")
+  # lm modeller
+  lm.tim    <- lm(Grader ~ time(Datum), data = data.timme)
+  lm.dag    <- lm(Medeltemperatur ~ time(Datum), data = data.dag)
+  lm.vecka  <- lm(Medeltemperatur ~ time(Datum), data = data.vecka)
+  
+  # Residualplottar
+  require(ggResidpanel)
+  resid.timme <- ggResidpanel::resid_panel(lm.tim) + theme_minimal()
+  resid.dag   <- ggResidpanel::resid_panel(lm.dag) + theme_minimal()
+  resid.vecka <- ggResidpanel::resid_panel(lm.vecka) + theme_minimal()
+  
+  ggsave("img/Kortsiktig/modell/kort_lm_residualplottar_timme.png", resid.timme)
+  ggsave("img/Kortsiktig/modell/kort_lm_residualplottar_dag.png", resid.dag)
+  ggsave("img/Kortsiktig/modell/kort_lm_residualplottar_vecka.png", resid.vecka)
+  
+  latex.tabel.linjar.regression <<- 
+    stargazer(list(lm.tim, lm.dag, lm.vecka), 
+              title = "Regressionsstatistik kort data med olika datagrupperingar", 
+              label = "lm_summering_kort_data_olika_gruppering",
+              no.space = TRUE, 
+              column.sep.width = "2.5pt",
+              font.size = "footnotesize")
+}
+
+
+test_av_stationaritet <- function(){  
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  data.dag     <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  data.vecka   <- read_rds("Data/r_datafiler/kort/kort.data.vecka.rds")
+  
+  Y.timme <- ts(data.timme$Grader, frequency = 24)
+  Y.dag <- ts(data.dag$Medeltemperatur, frequency = 1)
+  Y.vecka <- ts(data.vecka$Medeltemperatur, frequency = 1/7)
+  
+  stationar_timme  <- adf.test(Y.timme) #Är den stationär?
+  stationar_dag    <- adf.test(Y.dag) #Är den stationär?
+  stationar_vecka    <- adf.test(Y.vecka) #Är den stationär?
+      
+  adf_timme <- rbind("Statistika" = round(stationar_timme$statistic, 4), "Lag order" = stationar_timme$parameter, "P-värde" = round(stationar_timme$p.value, 4), "Mothypotes" = stationar_timme$alternative)
+  adf_dag   <- rbind("Statistika" = round(stationar_dag$statistic, 4), "Lag order" = stationar_dag$parameter, "P-värde" = round(stationar_dag$p.value, 4), "Mothypotes" = stationar_dag$alternative)
+  adf_vecka <- rbind("Statistika" = round(stationar_vecka$statistic, 4), "Lag order" = stationar_vecka$parameter, "P-värde" = round(stationar_vecka$p.value, 4), "Mothypotes" = stationar_vecka$alternative)
+    
+  latex_tabell_stationaritet <<- xtable(cbind(adf_timme, adf_dag, adf_vecka))
+  return(xtable(cbind(adf_timme, adf_dag, adf_vecka)))
+} 
+  
+
+test_av_stationaritet_efter_differentiering <- function(){  
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  data.dag     <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  data.vecka   <- read_rds("Data/r_datafiler/kort/kort.data.vecka.rds")
+  
+  Y.timme <- ts(data.timme$Grader, frequency = 24)
+  Y.dag <- ts(data.dag$Medeltemperatur, frequency = 1)
+  Y.vecka <- ts(data.vecka$Medeltemperatur, frequency = 1/7)
+  
+  stationar_timme  <- adf.test(Y.timme) #Är den stationär?
+  stationar_dag    <- adf.test(diff(Y.dag, 1)) #Är den stationär?
+  stationar_vecka    <- adf.test(diff(Y.vecka, 1)) #Är den stationär?
+  
+  adf_timme <- rbind("Statistika" = round(stationar_timme$statistic, 4), "Lag order" = stationar_timme$parameter, "P-värde" = round(stationar_timme$p.value, 4), "Mothypotes" = stationar_timme$alternative)
+  adf_dag   <- rbind("Statistika" = round(stationar_dag$statistic, 4), "Lag order" = stationar_dag$parameter, "P-värde" = round(stationar_dag$p.value, 4), "Mothypotes" = stationar_dag$alternative)
+  adf_vecka <- rbind("Statistika" = round(stationar_vecka$statistic, 4), "Lag order" = stationar_vecka$parameter, "P-värde" = round(stationar_vecka$p.value, 4), "Mothypotes" = stationar_vecka$alternative)
+  
+  latex_tabell_stationaritet_efter_differentiering <<- xtable(cbind(adf_timme, adf_dag, adf_vecka))
+  return(xtable(cbind(adf_timme, adf_dag, adf_vecka)))
+} 
+
+##### Deterministisk och stokastisk nedbrytning av timvis tidsserie -----
+plot_modellkomponenter_kort_timme <- function(){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  Y.timme <- ts(data.timme$Grader, frequency = 24*7)
+  decompose_Ytimme <- decompose(Y.timme, type = "additive")
+  
+  plot <- autoplot(Y.timme, series="Data") +
+            autolayer(trendcycle(decompose_Ytimme), series="Trend") +
+            autolayer(seasadj(decompose_Ytimme), series="Seasonally Adjusted") +
+            #xlim(c(100, 123)) + ylim(c(-25, 5)) +
+            xlab("Vecka") + ylab("Temperatur") +
+            ggtitle("Tidsserien nedbruten i dess komponenter 2022/09 - 2022/12") +
+            scale_colour_manual(values=c("orange","blue","red"),
+                                breaks=c("Data","Seasonally Adjusted","Trend")) + 
+            theme_minimal()+
+            theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+                  panel.ontop = FALSE)
+  ggsave("img/Kortsiktig/modell/modellkomponeneter_timme_kort.png", plot)
+  plot
+}
+
+plot_decomposed_stokastisk_timme <- function(){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  Y.timme <- ts(data.timme$Grader, frequency = 24*7)
+  random <- ts(decompose(Y.timme, type = "additive")$random, frequency = 24*7)
+  
+  resid_plot <- autoplot(random, col = "red") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  acf <- ggAcf(random, series = "ACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  pacf <-  ggPacf(random, series = "PACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  plot_arrange <- ggarrange(resid_plot, acf, pacf,
+            ncol = 1, nrow = 3,
+            top=textGrob("Diagnostik av stokastiska processen", gp=gpar(fontsize=20,font=6)))
+  
+  ggsave("img/Kortsiktig/modell/random_arrange_plot.png", plot_arrange)
+  }
+
+plot_decomposed_stokastisk_diff_timme <- function(antal_diff){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  Y.timme <- ts(diff(data.timme$Grader, antal_diff), frequency = 24*7)
+  random <- ts(decompose(Y.timme, type = "additive")$random, frequency = 24*7)
+  
+  resid_plot <- autoplot(random, col = "red") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  acf <- ggAcf(random, series = "ACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  pacf <- ggPacf(random, series = "PACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  plot_arrange <- ggarrange(resid_plot, acf, pacf,
+            ncol = 1, nrow = 3,
+            top=textGrob(paste("Diagnostik av stokastiska processen diff(", antal_diff, ")"), gp=gpar(fontsize=20,font=6)))
+  ggsave("img/Kortsiktig/modell/random_diff1_arrange_plot.png", plot_arrange)
+  }
+
+
+
+modell_kort_data_timme <- function(){
+  data.timme   <- read_rds("Data/r_datafiler/kort/kort.data.timme.rds")
+  Y.timme <- ts(data.timme$Grader, frequency = 24*7)
+  #random <- ts(decompose(Y.timme, type = "additive")$random, frequency = 24*7)
+  random <-  ts(Y.timme, frequency = 24*7)
+  modell_timme <<- auto.arima(random)
+}
+
+
+##### Deterministisk och stokastisk nedbrytning av dagsvis tidsserie -----
+plot_modellkomponenter_kort_dag <- function(){
+  data.dag   <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  Y.dag <- ts(data.dag$Medeltemperatur, frequency = 7)
+  decompose_Ydag <- decompose(Y.dag, type = "additive")
+  
+  plot <- autoplot(Y.dag, series="Data") +
+    autolayer(trendcycle(decompose_Ydag), series="Trend") +
+    autolayer(seasadj(decompose_Ydag), series="Seasonally Adjusted") +
+    xlim(c(1, 15)) +
+    xlab("Vecka") + ylab("Temperatur") +
+    ggtitle("Tidsserien nedbruten i dess komponenter 2022/09 - 2022/12") +
+    scale_colour_manual(values=c("orange","blue","red"),
+                        breaks=c("Data","Seasonally Adjusted","Trend")) + 
+    theme_minimal()+
+    theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+          panel.ontop = FALSE)
+  ggsave("img/Kortsiktig/modell/modellkomponeneter_dag_kort.png", plot)
+  plot
+}
+
+
+plot_decomposed_stokastisk_dag <- function(){
+  data.dag   <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  Y.dag <- ts(data.dag$Medeltemperatur, frequency = 7)
+  random <- ts(decompose(Y.dag, type = "additive")$random, frequency = 7)
+  
+  resid_plot <- autoplot(random, col = "red") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  acf <- ggAcf(random, series = "ACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  pacf <-  ggPacf(random, series = "PACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  plot_arrange <- ggarrange(resid_plot, acf, pacf,
+                            ncol = 1, nrow = 3,
+                            top=textGrob("Diagnostik av stokastiska processen", gp=gpar(fontsize=20,font=6)))
+  
+  ggsave("img/Kortsiktig/modell/random_arrange_plot.png", plot_arrange)
+}
+
+plot_decomposed_stokastisk_diff_dag <- function(antal_diff){
+  data.dag   <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  Y.dag <- ts(diff(data.dag$Medeltemperatur, antal_diff), frequency = 7)
+  random <- ts(decompose(Y.dag, type = "additive")$random, frequency = 7)
+  
+  resid_plot <- autoplot(random, col = "red") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  acf <- ggAcf(random, series = "ACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  pacf <- ggPacf(random, series = "PACF") + 
+    theme_minimal() + theme(axis.line = element_line(linewidth = 2, colour = "grey80"))
+  
+  plot_arrange <- ggarrange(resid_plot, acf, pacf,
+                            ncol = 1, nrow = 3,
+                            top=textGrob(paste("Diagnostik av stokastiska processen diff(", antal_diff, ")"), gp=gpar(fontsize=20,font=6)))
+  ggsave("img/Kortsiktig/modell/random_diff1_arrange_plot.png", plot_arrange)
+}
+
+modell_kort_data_dag <- function(){
+  data.dag   <- read_rds("Data/r_datafiler/kort/kort.data.dag.rds")
+  Y.dag <- ts(data.dag$Medeltemperatur, frequency = 7)
+  random <- ts(decompose(Y.dag, type = "additive")$random, frequency = 7)
+  
+  modell_dag <<- auto.arima(random)
+  modell_dag_ETS <<- ETS(random) 
+}
+
+
+autoplot(forecast(modell_timme, h =14))
+
+
+
+
+# Tidslinje över hela perioden
+p.timeline <- ggplot(data = data.dag, aes(x = Datum, y =  Medeltemperatur)) +
+  geom_line() +
+  geom_smooth(method = "loess") +
+  geom_smooth(method = "lm", col = "red", se = FALSE) +
+  scale_colour_manual(name="legend", values=c("blue", "red")) +
+  labs(title = "Temperaturmätningar 2022/09 - 2022/12", y = expression(Y_t), x = "Månad") + 
+  theme_minimal() + 
+  theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+        panel.ontop = FALSE) 
+
+# Gör nedan en plott av standardiserade residualer från en loess modell
+p.timeline.resid <- data.frame(x = 1:length(summary(loess(Medeltemperatur ~ time(Datum), data = data.dag))$residual), y = scale(summary(loess(Medeltemperatur ~ time(Datum), data = data.dag))$residual), Månad = month(data.dag$Datum)) %>% 
+  ggplot(aes(x = x, y = y, color = as.factor(Månad), shape = as.factor(Månad))) + 
+  geom_point(size = 3) + 
+  labs(title = "Residualer LOESS 2022/09 - 2022/12", y = "Standardiserad Residual", x = "") +
+  theme_minimal() + 
+  theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+        legend.position = "bottom",
+        panel.ontop = FALSE) 
+
+p.timeline.arrange <- ggarrange(p.timeline, p.timeline.resid, nrow =  2, heights = c(3,2.5))
+ggsave("img/Kortsiktig/desk/timeline_arrange_yt_residual.png", p.timeline.arrange)
+
+### Gör här på när vi har differensierat med en dag (diff1)
+p.timeline.diff1 <- ggplot(data = data.dag, aes(x = Datum, y =  diff1.medeltemp)) +
+  geom_line() +
+  geom_smooth(method = "loess") +
+  geom_smooth(method = "lm", col = "red", se = FALSE) +
+  scale_colour_manual(name="legend", values=c("blue", "red")) +
+  labs(title = "Diff föregående dag 2022/09 - 2022/12", y = expression(Y_t-1), x = "Månad") + 
+  theme_minimal() + 
+  theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+        panel.ontop = FALSE) 
+
+p.timeline.diff1.resid <- data.frame(x = 1:length(summary(lm(diff1.medeltemp ~ time(Datum), data = data.dag))$residual), y = scale(summary(lm(diff1.medeltemp ~ time(Datum), data = data.dag))$residual), Månad = month(data.dag$Datum[-1])) %>% 
+  ggplot(aes(x = x, y = y, color = as.factor(Månad), shape = as.factor(Månad))) + 
+  geom_point(size = 3) + 
+  labs(title = "Residual Diff1 föregående dag 2022/09 - 2022/12", y = "Standardiserad Residual", x = "") +
+  theme_minimal() + 
+  theme(axis.line = element_line(linewidth = 2, colour = "grey80"),
+        legend.position = "bottom",
+        panel.ontop = FALSE) 
+
+p.timeline.diff1.arrange <- ggarrange(p.timeline.diff1, p.timeline.diff1.resid, nrow =  2, heights = c(3,2.5))
+ggsave("img/Kortsiktig/desk/timeline_arrange_yt1_residual.png", p.timeline.diff1.arrange)
+
+
+
+# Visualisering av daglig data, alltså temperatur mot timme
+
+
+
+
+p.temp.per.timme.sep.t.okt <- data.timme %>% filter(Datum < '2022-10-31') %>% group_by(Datum) %>% mutate(rel_grad = scale(Grader)) %>% 
+  ggplot(aes(x = Timme, y = rel_grad, color = Datum, group = Datum)) + 
+  geom_line( size = 1) +
+  geom_point(size = 0.9, col = "black") +
+  geom_smooth(method = "loess", se = TRUE, level = 0.95, alpha = 0.05, col = "grey") +
+  xlim(c(1,24)) +
+  theme_minimal() + labs(title = "Standardiserad temperatur per timme", y = "Temperatur standardiserad", x = "Timme på dygnet") +
+  theme(panel.border = element_rect(linetype = "dashed", fill = NA))
+
+p.temp.per.timme.nov.t.dec <- data.timme %>% filter(Datum > '2022-10-31') %>%  group_by(Datum) %>% mutate(rel_grad = scale(Grader)) %>% 
+  ggplot(aes(x = Timme, y = rel_grad, color = Datum, group = Datum)) + 
+  geom_line( size = 1) +
+  geom_point(size = 0.9, col = "black") +
+  geom_smooth(method = "loess", se = TRUE, level = 0.95, alpha = 0.05, col = "grey") +
+  xlim(c(1,24)) +
+  theme_minimal() + labs(title = "Standardiserad temperatur per timme" , y = "Temperatur standardiserad", x = "Timme på dygnet") +
+  theme(panel.border = element_rect(linetype = "dashed", fill = NA))
+
+p.arrange.temp.per.timme <- ggarrange(p.temp.per.timme.sep.t.okt, p.temp.per.timme.nov.t.dec, ncol =  2)
+ggsave("img/Kortsiktig/desk/arrange_temp_per_timme.png", p.arrange.temp.per.timme, width = 12, height = 5)
+
+
+
+
+Y_timme_train <- ts(data.timme$Grader[data.timme$Datum < '2022-12-17'], frequency = 24)
+Y_dag_train <- ts(data.dag$Medeltemperatur[data.dag$Datum < '2022-12-17'], frequency = 1)
+Y_vecka_train <- ts(data.vecka$Medeltemperatur[data.vecka$Datum < '2022-12-17'], frequency = 1/7)
+
+modell_arima_timme  <- auto.arima(Y_timme_train)
+modell_arima_dag    <- auto.arima(Y_dag_train)
+
+modell_ets_timme  <- ets(Y_timme_train)
+modell_ets_dag    <- ets(Y_dag_train)
+
+autoplot(modell_arima_timme)
+autoplot(modell_arima_dag)
+autoplot(modell_ets_timme)
+autoplot(modell_ets_dag)
+
+autoplot(forecast.ets(modell_ets_timme), h = 24*14, include = 24*12) + theme_minimal()
+autoplot(forecast.ets(modell_ets_dag), h = 1*14, include = 1*12) + theme_minimal()
+
+autoplot(forecast(modell_arima_timme), h = 24*14, include = 24*12) + theme_minimal()
+autoplot(forecast(modell_arima_dag), h = 1*14, include = 1*12) + theme_minimal()
+
+
+
+
+##### Diagnostik-plottar modeller ------
+checkresiduals(modell_arima_timme)
+checkresiduals(modell_arima_dag)
+checkresiduals(modell_ets_timme)
+checkresiduals(modell_ets_dag)
+
+
+
+
+
+##### Prediktionsförmåga -----
+
+
+### ARIMA
+PRESS_ARIMA_Y_timme  <- sum((data.timme$Grader[data.timme$Datum > '2022-12-17'] - forecast(modell_arima_timme, h = 14*24)$mean)^2)
+PRESS_ARIMA_Y_dag    <- sum((data.dag$Medeltemperatur[data.dag$Datum > '2022-12-17'] - forecast(modell_arima_dag, h = 14*1)$mean)^2)
+
+
+### ETS
+PRESS_ETS_Y_timme  <- sum((data.timme$Grader[data.timme$Datum > '2022-12-17'] - forecast(modell_ets_timme, h = 14*24)$mean)^2)
+PRESS_ETS_Y_dag    <- sum((data.dag$Medeltemperatur[data.dag$Datum > '2022-12-17'] - forecast(modell_ets_dag, h = 14*1)$mean)^2)
+
+
+### Latex tabell PRESS Modeller
+tabell_modeller_PRESS <- xtable(round(rbind(PRESS_ARIMA_Y_timme, PRESS_ARIMA_Y_dag, PRESS_ETS_Y_timme, PRESS_ETS_Y_dag), 3), 
+                                label = "tab:press_modeller",
+                                caption = "PRESS-värde")
+tabell_modeller_PRESS
+
+
+
+###### Forecasting ------
+
+### Skattat vs_ verklighet på test_data
+forecast_modell_vs_verkligt_varde_timme <- function(modell, dagar){
+  data_timme_test <-  data.timme$Grader[data.timme$Datum > '2022-12-17']
+  all_data <- data.frame(cbind(verklig_data = ts(data.timme$Grader[data.timme$Datum > '2022-12-17'], frequency = 24), 
+                               forecast = ts(data.frame(forecast(modell, 14*24)), frequency = 24)))
+  
+  plot_skattning_vs_real <- ggplot(all_data, aes(x = 1:(length(all_data$verklig_data))/24)) + 
+    geom_ribbon(aes(ymin = forecast.Lo.80, ymax = forecast.Hi.80, fill = "80% Konfidens"), alpha = 0.8) + 
+    geom_ribbon(aes(ymin = forecast.Lo.95, ymax = forecast.Hi.95, fill = "95% Konfidens"), alpha = 0.2) +
+    geom_line(aes(y = forecast.Point.Forecast, color = "Skattat värde")) +
+    geom_point(aes(y = forecast.Point.Forecast,color = "Skattat värde"), size = 2) +
+    geom_line(aes(y = verklig_data,color = "Verkligt värde"), linewidth = 1) +
+    geom_point(aes(y = verklig_data,color = "Verkligt värde"), size = 2) +
+    scale_fill_manual(name = "Konfidens", values = c("80% Konfidens" = "lightblue", "95% Konfidens" = "blue")) +
+    scale_color_manual(name = "Värden", values = c("Skattat värde" = "black", "Verkligt värde" = "orange")) +
+    labs(title = paste("Skattat vs. verkligt värde:", as.character(modell)), x = "Dag", y = "Temperatur") +
+    xlim(c(0,15)) +
+    theme_minimal()
+  
+  save_objekt <- paste0("img/kortsiktig/forecast/skattat_verklig_testdata_timme_", deparse(substitute(modell)), ".png")
+  ggsave(save_objekt, plot_skattning_vs_real)
+  plot_skattning_vs_real
+}
+
+forecast_modell_vs_verkligt_varde_dag <- function(modell, dagar){
+  data_timme_test <-  data.timme$Grader[data.timme$Datum > '2022-12-17']
+  all_data <- data.frame(cbind(verklig_data = ts(data.timme$Grader[data.timme$Datum > max(data.timme$Datum)-dagar], frequency = 1), 
+                               forecast = ts(data.frame(forecast(modell, dagar*1)), frequency = 1)))
+  
+  plot_skattning_vs_real <- ggplot(all_data, aes(x = 1:length(all_data$verklig_data))) + 
+    geom_ribbon(aes(ymin = forecast.Lo.80, ymax = forecast.Hi.80, fill = "80% Konfidens"), alpha = 0.8) + 
+    geom_ribbon(aes(ymin = forecast.Lo.95, ymax = forecast.Hi.95, fill = "95% Konfidens"), alpha = 0.2) +
+    geom_line(aes(y = forecast.Point.Forecast, color = "Skattat värde")) +
+    geom_point(aes(y = forecast.Point.Forecast,color = "Skattat värde"), size = 2) +
+    geom_line(aes(y = verklig_data,color = "Verkligt värde"), linewidth = 1) +
+    geom_point(aes(y = verklig_data,color = "Verkligt värde"), size = 2) +
+    scale_fill_manual(name = "Konfidens", values = c("80% Konfidens" = "lightblue", "95% Konfidens" = "blue")) +
+    scale_color_manual(name = "Värden", values = c("Skattat värde" = "black", "Verkligt värde" = "orange")) +
+    labs(title = paste("Skattat vs. verkligt värde:", as.character(modell)), x = "Dag", y = "Temperatur") +
+    xlim(c(0,15)) +
+    theme_minimal()
+  
+  save_objekt <- paste0("img/kortsiktig/forecast/skattat_verklig_testdata_dag_", deparse(substitute(modell)), ".png")
+  ggsave(save_objekt, plot_skattning_vs_real)
+  plot_skattning_vs_real
+}
+
+
+forecast_framover_modell_timme <- function(modell, dagar){
+  forecast_plot <- autoplot(forecast(modell, h = dagar*24), include = 24*dagar) + 
+    labs(x = "Dag", y = "Temperatur") + 
+    theme_minimal() 
+  
+  save_objekt <- paste0("img/kortsiktig/forecast/forecast_timme_", deparse(substitute(modell)), ".png")
+  ggsave(save_objekt, forecast_plot)
+}
+
+
+forecast_framover_modell_dag <- function(modell, dagar){
+  forecast_plot <- autoplot(forecast(modell, h = dagar), include = dagar) + 
+    labs(x = "Dag", y = "Temperatur") + 
+    theme_minimal() 
+  
+  save_objekt <- paste0("img/kortsiktig/forecast/forecast_dag_", deparse(substitute(modell)), ".png")
+  ggsave(save_objekt, forecast_plot)
+}
