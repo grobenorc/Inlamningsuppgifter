@@ -1,0 +1,265 @@
+setwd("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAH14 Tidsserieanalys/Inlämningar/Inlämningsuppgift_1")
+
+library(tidyverse)
+library(fitdistrplus)
+library(rstatix)
+library(ggpubr)
+library(MASS)
+library(lubridate)
+
+##### Inhämtning och bearbetning av data -----
+data_dag     <- read_rds("Data/r_datafiler/lang/lang.data.dag.rds")
+data_vecka   <- read_rds("Data/r_datafiler/lang/lang.data.vecka.rds")
+data_manad   <- read_rds("Data/r_datafiler/lang/lang.data.manad.rds")
+data_dag_innan_1970 <- data_dag %>% filter(year(Datum) < 1970)
+data_dag_efter_2002 <- data_dag %>% filter(year(Datum) > 2001)
+data_dag_sorterad <- rbind(data_dag_efter_2002, data_dag_innan_1970) %>% mutate(Grupp = ifelse(year(Datum) > 2001, " >2001", "  <1970"), Arstid = ifelse(month(Datum) < 5 | month(Datum) > 8, "Vinter", "Sommar") )
+Y_dag_innan_1970 <- ts(data_dag_innan_1970$Medeltemperatur, start = 1950, end = c(1970), frequency = 365.25)
+Y_dag_efter_2002 <- ts(data_dag_efter_2002$Medeltemperatur, start = 2002, end =c(2022,3), frequency = 365.25)
+standardiserad_forandring <- data_dag_sorterad %>% 
+  group_by(Grupp) %>% 
+  mutate(std_change = (diff1 - mean(diff1, na.rm = TRUE)) / sd(diff1, na.rm = TRUE))#
+
+
+forandring_vinter <- standardiserad_forandring %>% 
+  filter(Arstid == 'Vinter' & abs(std_change) > 1.96) %>% 
+  arrange(År) %>% 
+  mutate(diff = abs( (month(Datum)-lag(month(Datum)))),
+         diff2 = ifelse(as.numeric(Datum - lag(Datum)) > 200, NA, as.numeric(Datum - lag(Datum))),
+         std_change_abs = abs(std_change)) %>% 
+  drop_na(diff2)
+
+foradring_sommar <- standardiserad_forandring %>% 
+  filter(Arstid == 'Sommar' & abs(std_change) > 1.96) %>% 
+  arrange(År) %>% 
+  mutate(diff = abs( (month(Datum)-lag(month(Datum)))),
+         diff2 = ifelse(as.numeric(Datum - lag(Datum)) > 200, NA, as.numeric(Datum - lag(Datum))),
+         std_change_abs = abs(std_change)) %>% 
+  drop_na(diff2)
+
+
+
+##### T-test  medeltemperaturen mellan grupperna ----
+ttest_mean <- t.test(data_dag_efter_2002$Medeltemperatur, data_dag_innan_1970$Medeltemperatur) # T-test av medelvärde mellan de olika tidsperioderna
+ttest_mean_tabell <- xtable(matrix(c("Two Sample t-test", "", "", "", 
+                                     "data: efter_2002 och innan_1970", 
+                                     "t = 11.068", "df = 14698", "p-value < 2.2e-16",
+                                     "alternative hypothesis: true difference in means is not equal to 0", 
+                                     "95 CI:", "1.316638 1.883331", 
+                                     "sample estimates:", "mean of x", "4.030858", "mean of y", "2.430874"), 
+                                   ncol = 2, byrow = TRUE))
+
+
+
+
+
+##### Extrem-värme/kyla -----
+
+### Datainladdning
+data_sommar_och_vinter_indelat <- data_dag %>% filter(month(Datum))
+
+data_sommar <- data_dag %>% 
+  filter(year(Datum) < 1971 & month(Datum) > 5 & month(Datum) < 9 | year(Datum) > 2001 & month(Datum) > 5 & month(Datum) < 9) %>% 
+  mutate(Grupp = ifelse(year(Datum)> 2000, ">2002", "<1970"))
+
+ggplot(data_sommar, aes(Medeltemperatur, fill = Grupp)) +
+  geom_density(alpha = 0.2) +
+  theme_minimal()
+
+data_vinter <- data_dag %>% 
+  filter( (year(Datum)< 1971 | year(Datum)> 2001) & (month(Datum) < 3 | month(Datum)>11) ) %>% 
+  mutate(Grupp = ifelse(year(Datum)> 2000, ">2002", "<1970"))
+
+ggplot(data_vinter, aes(Medeltemperatur)) +
+  geom_density(alpha = 0.2) +
+  theme_minimal()
+
+
+
+## Kvantilberäkning 2.5% för sommar- respektive vinterperiod
+extrem_varme <- data_sommar %>% filter(Medeltemperatur > quantile(data_dag$Medeltemperatur, 0.975)) # Här tar vi alltså ut för den 97.5% kvantilen, medeltemperatur. (Medeltemperatur > 20.98552 är utanför 95%)
+extrem_kyla  <- data_vinter %>% filter(Medeltemperatur < quantile(data_dag$Medeltemperatur, 0.025)) # Här tar vi alltså ut för den 97.5% kvantilen, medeltemperatur. (Medeltemperatur < -21.34112  är utanför 95%)
+
+# Gör en plot på hur många gånger vardera grupp hade medeltemperatur som understeg 0.025 kvantilen
+p_antal_extremkyla <- ggplot(extrem_kyla, aes(x=Grupp, fill = Grupp)) + 
+  geom_bar(show.legend = FALSE) + 
+  labs(title = "Antal gånger medeltemperaturen < -16.2 (°C)", x="Tidsperiod", y="Antal") + 
+  theme_minimal() 
+
+# Gör en plot på hur många gånger vardera grupp hade medeltemperatur som översteg 0.975 kvantilen
+p_antal_extremvarme <- ggplot(extrem_varme, aes(x=Grupp, fill = Grupp)) + 
+  geom_bar(show.legend = FALSE) + 
+  labs(title = "Antal gånger medeltemperaturen > +18 (°C)", x="Tidsperiod", y="Antal") + 
+  theme_minimal() 
+
+p_arrange_antal_extremvader <- ggarrange(p_antal_extremkyla, p_antal_extremvarme, ncol = 2)
+ggsave("img/forandring/antal_understeg_oversteg_kvantil.png", plot = p_arrange_antal_extremvader)
+
+
+
+##### Hur ofta förekommer/sannolikheten för extremkyla -----
+extremvader_bada <- rbind(extrem_kyla, extrem_varme) %>% 
+  dplyr::select(Datum, År, Medeltemperatur, Grupp) %>% 
+  mutate(Årstid = ifelse(month(Datum) >5 & month(Datum) < 9, "Sommar", "Vinter"), 
+         nytt_År = ifelse(month(Datum) > 11, year(Datum)+1, year(Datum))) %>% 
+  group_by(nytt_År, Grupp, Årstid) %>% 
+  summarise(n = n(),
+            prob = n/(30*3)) %>% 
+  arrange(nytt_År, Årstid)
+
+p_extremvader_bada <- ggplot(extremvader_bada, aes(x = nytt_År, y = prob, fill = Årstid, color = Årstid)) +
+  geom_line(linewidth = 1) +
+  geom_smooth(aes(group=Årstid), color = "brown", method = "loess", se =FALSE, show.legend = FALSE) + 
+  ylim(c(0, 0.45)) +
+  labs(title = "Sannolikheten för extremväder per tidsperiod", x = "Årtal", y = "Prob") +
+  theme_minimal() + theme(panel.border = element_rect(fill = NA)) + 
+  facet_grid(~Grupp, scales = "free")
+ggsave("img/forandring/sannolikheten_extremvader_tidslinje.png", plot = p_extremvader_bada)
+
+
+
+
+##### Boxplot med t-test av antal dagar per år per period med extremväder ----
+
+p_box_ttest_antal_vinter <- rbind(extrem_kyla, extrem_varme) %>% 
+  dplyr::select(Datum, År, Medeltemperatur, Grupp) %>% 
+  mutate(Årstid = ifelse(month(Datum) >5 & month(Datum) < 9, "Sommar", "Vinter"), 
+         nytt_År = ifelse(month(Datum) > 11, year(Datum)+1, year(Datum))) %>% 
+  group_by(nytt_År, Grupp, Årstid) %>% 
+  summarise(n = n(),
+            prob = n/(30*3)) %>% 
+  ggboxplot(x = "Grupp", y = "n",
+               color = "Grupp",
+               add = "jitter",
+               shape = "Grupp") +
+  stat_compare_means(method = "t.test", label.x = 2) + theme_minimal() + theme(panel.border = element_rect(fill = NA)) +
+  labs(title = "Antal dagar med extremväder per tidsperiod per årstid", y = "Antal dagar") + 
+  facet_grid(~Årstid)
+ggsave("img/forandring/ttest_antal_dagar.png", plot = p_box_ttest_antal_vinter)                    
+                     
+                     
+                     
+                     
+                     
+
+
+##### Passning av fördelning av daglig förändring 1950-1970 -------
+### Inleder med passning av åren 1950-1970
+plotdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001])
+#Cullen and fey graf
+descdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001], discrete = FALSE, boot = 1000)
+
+#Fit given fördelning
+fit_w_1950  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001], "weibull")
+fit_g_1950  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001], "gamma")
+fit_ln_1950 <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001], "lnorm")
+
+dists <- c("gamma","lnorm","weibull")
+fit <- list()
+for (i in 1:length(dists)){
+  fit[[i]]  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum < 2001], dists[i])
+}
+
+for (i in 1:length(dists)){
+  print(summary(fit[[i]]))
+}
+
+# lnnorm passar materialet bäst då den har lägst AIC (Loglikelihood, AIC (Akaike Information Criterion), BIC (Bayesian Information Criterion)  are measures of quality of statistical models. They are used to select the best model ( high MLE, low AIC low BIC))
+
+
+# Plottar resultaten
+par(mfrow=c(2,2))
+plot.legend <- c("Weibull", "lognormal", "gamma")
+denscomp(list(fit_w_1950, fit_g_1950, fit_ln_1950), legendtext = plot.legend)
+cdfcomp (list(fit_w_1950, fit_g_1950, fit_ln_1950), legendtext = plot.legend)
+qqcomp  (list(fit_w_1950, fit_g_1950, fit_ln_1950), legendtext = plot.legend)
+ppcomp  (list(fit_w_1950, fit_g_1950, fit_ln_1950), legendtext = plot.legend)
+
+
+
+##### Passning av fördelning av daglig förändring 2002-2022 -------
+
+### Inleder med passning av åren 2002-2022
+plotdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001])
+#Cullen and fey graf
+descdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001], discrete = FALSE, boot = 1000)
+
+#Fit given fördelning
+fit_w_2002  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001], "weibull")
+fit_g_2002  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001], "gamma")
+fit_ln_2002 <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001], "lnorm")
+
+dists <- c("gamma","lnorm","weibull")
+fit <- list()
+for (i in 1:length(dists)){
+  fit[[i]]  <- fitdist(forandring_vinter$diff2[forandring_vinter$Datum > 2001], dists[i])
+}
+
+for (i in 1:length(dists)){
+  print(summary(fit[[i]]))
+}
+
+# lnnorm passar materialet bäst då den har lägst AIC (Loglikelihood, AIC (Akaike Information Criterion), BIC (Bayesian Information Criterion)  are measures of quality of statistical models. They are used to select the best model ( high MLE, low AIC low BIC))
+
+
+# Plottar resultaten
+par(mfrow=c(2,2))
+plot.legend <- c("Weibull", "lognormal", "gamma")
+denscomp(list(fit_w_2002, fit_g_2002, fit_ln_2002), legendtext = plot.legend)
+cdfcomp (list(fit_w_2002, fit_g_2002, fit_ln_2002), legendtext = plot.legend)
+qqcomp  (list(fit_w_2002, fit_g_2002, fit_ln_2002), legendtext = plot.legend)
+ppcomp  (list(fit_w_2002, fit_g_2002, fit_ln_2002), legendtext = plot.legend)
+
+
+
+
+
+
+##### Jämför periodernas GAMMA-fördelning -----
+
+# 1950: shape = 0.74684647, rate/scale = 0.08683334
+# 2002: shape = 0.69778908, rate/scale = 0.05353958
+
+shape <- 0.69778908
+rate <- 0.05353958
+x <- seq(0, 20, length.out = 1000)
+y1950 <- dgamma(x, shape, scale = 1 / rate)
+y2002 <- dgamma(x, shape, scale = 1 / rate)
+df <- data.frame(x, y1950, y2002)
+
+ggplot(df, aes(x, y)) +
+  geom_line(color = "red", size = 1) +
+  scale_x_continuous(limits = c(0, 20), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 0.5), expand = c(0, 0)) +
+  labs(x = "x", y = "Probability Density")
+
+
+
+
+
+
+# genererar sample från de två fördelningarna
+set.seed(123)
+data1950 <- rgamma(10000, shape = 0.74684647, scale = 1/0.08683334)
+data2002 <- rgamma(10000, shape = 0.69778908, scale = 1/0.05353958)
+
+#beräkna den maximala sannolikheten för varje fördelning separat
+fit1_sample <- fitdistr(data1950, "gamma")
+fit2_sample <- fitdistr(data2002, "gamma")
+
+#beräkna den maximala sannolikheten för modellen med de två fördelningarna tillsammans
+fit_combined <- fitdistr(c(data1950, data2002), "gamma")
+
+#beräkna LRT
+LRT <- 2 * (logLik(fit_combined) - logLik(fit1_sample) - logLik(fit2_sample))
+
+#jämför med kritiskt värde från chi-kvadrat-fördelning med antal frihetsgrader = skillnaden i antal parametrar
+df <- ncol(fit_combined$estimate) - ncol(fit1_sample$estimate) - ncol(fit2_sample$estimate)
+p_value <- pchisq(LRT, df=2, lower.tail = FALSE)
+
+#resultatet är signifikant om p-värdet är mindre än din valda signifikansnivå
+if (p_value < 0.05) {
+  print("Fördelningarna är signifikant skiljda")
+} else {
+  print("Fördelningarna är inte signifikant skiljda")
+}
