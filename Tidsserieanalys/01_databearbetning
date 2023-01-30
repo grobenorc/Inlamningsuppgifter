@@ -1,0 +1,145 @@
+setwd("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAH14 Tidsserieanalys/Inlämningar/Inlämningsuppgift_1")
+
+library(tidyverse)
+library(knitr)
+library(zoo)
+
+
+##### Inladdning av data -----
+data.lang <- read_excel("Data/Vader_data_lang.xlsx", col_types = c("date", "numeric")) %>% mutate(Datum = date(Timestamp), År = as.factor(year(Timestamp)), Månad = as.factor(month(Timestamp)), Vecka = as.factor(week(Timestamp)), Dag = yday(Timestamp))
+data.kort <- read_excel("Data/Vader_data_kort.xlsx", col_types = c("date", "numeric")) %>% mutate(Datum = date(Timestamp), År = as.factor(year(Timestamp)), Månad = as.factor(month(Timestamp)), Vecka = as.factor(week(Timestamp)), Dag = yday(Timestamp))
+
+
+
+##### Bearbetning av lång data ------
+# Grupperar pÃ¥ unik dag och tar medeltemperatur av det
+data.dag <- data %>%  
+  group_by(Datum) %>% 
+  summarise(Medeltemperatur = mean(Grader),
+            var = var(Grader),
+            sd = sd(Grader)) %>% 
+  mutate(År = as.factor(year(Datum)), 
+         Månad = as.factor(month(Datum)), 
+         Vecka = as.factor(week(Datum)), 
+         Dag = yday(Datum),
+         lag1 = lag(Medeltemperatur, n = 1),
+         diff1 = Medeltemperatur - lag1,
+         rull20.mean = rollapply(Medeltemperatur, width = 20, mean, align = "right", fill = NA),
+         rull50.mean = rollapply(Medeltemperatur, width = 50, mean, align = "right", fill = NA),
+         rull100.mean = rollapply(Medeltemperatur, width = 100, mean, align = "right", fill = NA),
+         rull20.sd = rollapply(Medeltemperatur, width = 20, sd, align = "right", fill = NA),
+         rull50.sd = rollapply(Medeltemperatur, width = 50, sd, align = "right", fill = NA),
+         rull100.sd = rollapply(Medeltemperatur, width = 100, sd, align = "right", fill = NA),
+         rull20.var = rollapply(Medeltemperatur, width = 20, var, align = "right", fill = NA),
+         rull50.var = rollapply(Medeltemperatur, width = 50, var, align = "right", fill = NA),
+         rull100.var = rollapply(Medeltemperatur, width = 100, var, align = "right", fill = NA))
+
+# Grupperar per vecka och tar medeltemperatur av det
+data.vecka <- data %>% group_by(År, Vecka) %>% 
+  summarise(Medeltemperatur = mean(Grader),
+            var = var(Grader),
+            sd = sd(Grader),
+            n = n(),
+            var_lower = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[1],
+            var_upper = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[2]) %>%
+  ungroup() %>% 
+  mutate(rull20.mean = rollapply(Medeltemperatur, width = 20, mean, align = "right", fill = NA),
+         rull50.mean = rollapply(Medeltemperatur, width = 50, mean, align = "right", fill = NA),
+         rull100.mean = rollapply(Medeltemperatur, width = 100, mean, align = "right", fill = NA),
+         rull20.sd = rollapply(Medeltemperatur, width = 20, sd, align = "right", fill = NA),
+         rull50.sd = rollapply(Medeltemperatur, width = 50, sd, align = "right", fill = NA),
+         rull100.sd = rollapply(Medeltemperatur, width = 100, sd, align = "right", fill = NA),
+         rull20.var = rollapply(Medeltemperatur, width = 20, var, align = "right", fill = NA),
+         rull50.var = rollapply(Medeltemperatur, width = 50, var, align = "right", fill = NA),
+         rull100.var = rollapply(Medeltemperatur, width = 100, var, align = "right", fill = NA))
+
+
+# Grupperar per mÃ¥nad och tar medeltemperatur av det
+data.manad <- data %>%  
+  group_by(År, Månad) %>% 
+  summarise(Medeltemperatur = mean(Grader),
+            var = var(Grader),
+            sd = sd(Grader),
+            n = n(),
+            var_lower = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[1],
+            var_upper = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[2])  %>%
+  ungroup() %>% 
+  mutate(lag1 = lag(Medeltemperatur, n = 1),
+         diff1 = Medeltemperatur - lag1,
+         rull3.mean = rollapply(Medeltemperatur, width = 3, mean, align = "right", fill = NA),
+         rull6.mean = rollapply(Medeltemperatur, width = 6, mean, align = "right", fill = NA),
+         rull12.mean = rollapply(Medeltemperatur, width = 12, mean, align = "right", fill = NA),
+         rull3.sd = rollapply(Medeltemperatur, width = 3, sd, align = "right", fill = NA),
+         rull6.sd = rollapply(Medeltemperatur, width = 6, sd, align = "right", fill = NA),
+         rull12.sd = rollapply(Medeltemperatur, width = 12, sd, align = "right", fill = NA),
+         rull3.var = rollapply(Medeltemperatur, width = 3, var, align = "right", fill = NA),
+         rull6.var = rollapply(Medeltemperatur, width = 6, var, align = "right", fill = NA),
+         rull12.var = rollapply(Medeltemperatur, width = 12, var, align = "right", fill = NA))
+
+
+# Grupperar pÃ¥ Ã¥r
+data.ar <- data %>%  
+  group_by(År) %>% 
+  summarise(Medeltemperatur = mean(Grader),
+            var = var(Grader),
+            sd = sd(Grader),
+            n = n(),
+            var_lower = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[1],
+            var_upper = (c((n-1)*var/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[2])  %>%
+  ungroup() %>% 
+  mutate(lag1 = lag(Medeltemperatur, n = 1),
+         diff1 = Medeltemperatur - lag1,
+         rull3.mean = rollapply(Medeltemperatur, width = 3, mean, align = "right", fill = NA),
+         rull6.mean = rollapply(Medeltemperatur, width = 6, mean, align = "right", fill = NA),
+         rull12.mean = rollapply(Medeltemperatur, width = 12, mean, align = "right", fill = NA),
+         rull3.sd = rollapply(Medeltemperatur, width = 3, sd, align = "right", fill = NA),
+         rull6.sd = rollapply(Medeltemperatur, width = 6, sd, align = "right", fill = NA),
+         rull12.sd = rollapply(Medeltemperatur, width = 12, sd, align = "right", fill = NA),
+         rull3.var = rollapply(Medeltemperatur, width = 3, var, align = "right", fill = NA),
+         rull6.var = rollapply(Medeltemperatur, width = 6, var, align = "right", fill = NA),
+         rull12.var = rollapply(Medeltemperatur, width = 12, var, align = "right", fill = NA)) %>% 
+  replace(is.na(.), 0)
+
+
+# Grupperar per Ã¥r och tar medeltemperatur av det
+data.ar.sum <- data.dag %>%  
+  group_by(År) %>% 
+  summarise(Grader = mean(Medeltemperatur),
+            var = var(Medeltemperatur, na.rm =TRUE),
+            var_diff1 = var(diff1, na.rm = TRUE),
+            sd = sd(Medeltemperatur),
+            n = n(),
+            mean_n = n/(73),
+            var_lower = (c((n-1)*var_diff1/qchisq(0.975, n-1), (n-1)*var_diff1/qchisq(0.025, n-1)))[1],
+            var_upper = (c((n-1)*var_diff1/qchisq(0.975, n-1), (n-1)*var/qchisq(0.025, n-1)))[2],
+            var_diff1.lower = (c((n-1)*var_diff1/qchisq(0.975, n-1), (n-1)*var_diff1/qchisq(0.025, n-1)))[1],
+            var_diff1.upper = (c((n-1)*var_diff1/qchisq(0.975, n-1), (n-1)*var_diff1/qchisq(0.025, n-1)))[2]) %>% 
+  replace(is.na(.), 0)
+
+
+
+data.manad.sum <- data.dag %>%  
+  group_by(Månad) %>% 
+  summarise(Grader = mean(Medeltemperatur),
+            var = var(Medeltemperatur, na.rm =TRUE),
+            var_diff= var(diff1, na.rm = TRUE),
+            sd = sd(Medeltemperatur, na.rm =TRUE),
+            n = n(),
+            mean_n = n/(73),
+            var_lower = (c((mean_n-1)*var/qchisq(0.975, mean_n-1), (mean_n-1)*var/qchisq(0.025, mean_n-1)))[1],
+            var_upper = (c((mean_n-1)*var/qchisq(0.975, mean_n-1), (mean_n-1)*var/qchisq(0.025, mean_n-1)))[2],
+            var_diff1.lower = (c((mean_n-1)*var_diff/qchisq(0.975, mean_n-1), (mean_n-1)*var_diff/qchisq(0.025, mean_n-1)))[1],
+            var_diff1.upper = (c((mean_n-1)*var_diff/qchisq(0.975, mean_n-1), (mean_n-1)*var_diff/qchisq(0.025, mean_n-1)))[2])
+
+data.vecka.sum <- data.dag %>%  
+  group_by(Vecka) %>% 
+  summarise(Grader = mean(Medeltemperatur),
+            var = var(Medeltemperatur, na.rm =TRUE),
+            var_diff= var(diff1, na.rm = TRUE),
+            sd = sd(Medeltemperatur, na.rm =TRUE),
+            n = n(),
+            mean_n = n/(73),
+            var_lower = (c((mean_n-1)*var/qchisq(0.975, mean_n-1), (mean_n-1)*var/qchisq(0.025, mean_n-1)))[1],
+            var_upper = (c((mean_n-1)*var/qchisq(0.975, mean_n-1), (mean_n-1)*var/qchisq(0.025, mean_n-1)))[2],
+            var_diff1.lower = (c((mean_n-1)*var_diff/qchisq(0.975, mean_n-1), (mean_n-1)*var_diff/qchisq(0.025, mean_n-1)))[1],
+            var_diff1.upper = (c((mean_n-1)*var_diff/qchisq(0.975, mean_n-1), (mean_n-1)*var_diff/qchisq(0.025, mean_n-1)))[2])
