@@ -3,7 +3,7 @@
 
 # Author: --- ----
 
-# Purpose: 
+# Purpose: Inlämnningsuppgift 1 - STAG42
 
 # Notes:
 
