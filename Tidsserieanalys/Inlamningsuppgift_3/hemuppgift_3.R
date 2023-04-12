@@ -1,5 +1,5 @@
 
-setwd("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAH14 Tidsserieanalys/Inlämningar/Hemuppgift_3")
+setwd("---")
 library(tidyverse)
 library(cowplot)
 library(tseries)
