@@ -1,0 +1,244 @@
+---
+title: " "
+output: pdf_document
+header-includes:
+  - \usepackage{float}
+  - \usepackage{sectsty}
+---
+
+```{r setup-avsnitt2, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE, 
+                      out.width = "80%", 
+                      fig.align = 'center')
+require(tidyverse)
+require(knitr)
+require(kableExtra)
+require(broom)
+require(haven)
+require(gridExtra)
+require(car)
+require(xtable)
+require(stargazer)
+```
+
+```{r inladdning-data}
+Nitration_I <- read_sav("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAA42 Grundkurs 2/Del1 - Praktik/Datorlaborationer/inlamning_4/Nitration_I.sav") %>% 
+  mutate(Ind_Add_time = as.factor(Ind_Add_time),
+         Ind_Stir_time = as.factor(Ind_Stir_time))
+```
+
+# Del 2
+
+## ANOVA(2)
+<!-- ```{r summering-data-del-2} -->
+<!-- Nitration_I %>%  -->
+<!--   group_by(Ind_Add_time, Ind_Stir_time) %>%  -->
+<!--   summarise(n = n(), -->
+<!--             Medel = mean(Output), -->
+<!--             SD = sd(Output)) %>% -->
+<!--   kable(format = "latex", -->
+<!--         caption = "Summeringsstatistik Nitrations-process", -->
+<!--         align = "c", -->
+<!--         digits = 3, -->
+<!--         booktabs = TRUE) %>%  -->
+<!--   kable_styling(latex_options = "HOLD_position", full_width = FALSE) -->
+<!-- ``` -->
+
+I detta avsnitt av rapporten undersöks, istället för en ANOVA(1) modell i avsnitt 1, nu en ANOVA(2) modell med faktorförsök vilket formuleras enligt
+$$
+Y_{ijk}=\mu \pm A \pm B \pm \pm (AB)+ \varepsilon_{ijk}, \quad \varepsilon \sim \mathcal{N}(0, \sigma_{\varepsilon}).
+$$
+I tabell 4 finnes de värden vilka undersöks, medelvärdet samt variansen per varje faktorkombination. Effekterna $\mu^*, A^*, B^* \ \& \  (AB)^*$ kan sedan beräknas utifrån datan i denna tabell.  
+
+
+
+```{=tex}
+\begin{table}[h!]
+\label{tab:summering-anova-2-factorial}
+\caption{Summering/Beräkning av effekter}
+\centering
+\begin{tabular}{|c|cc|cc|c|c|l|c|}
+  \hline
+   &  &  & \multicolumn{2}{c|}{$Y_{ij}, n=2$} & $\bar{Y}_{ij}$ & $s^2_{ij}$ & Df \\
+  \hline
+  (1) & (-) 2 & (-) 0.5 & 85.4 & 85.6 & 85.5 & $0.1^2 + 0.1^2 = 0.02$ & 1 \\
+  (a) & (+) 7 & (-) 0.5 & 86.6 & 86.9 & 86.75 & $0.15^2+0.15^2=0.045$ & 1 \\
+  (b) & (-) 2 & (+) 4 & 80.1 & 80.4 & 80.25 & $0.15^2+0.15^2=0.045$ & 1 \\
+  (ab) & (+) 7 & (+) 4 & 81.2 & 81.4 & 81.3 &  $0.1^2+0.1^2=0.02$ & 1 \\
+  \hline
+\end{tabular}
+\end{table}
+```
+
+```{=tex}
+\begin{align*}
+ \mu^* &= \frac{1}{4}(85.5+86.75+80.25+81.3) = 83.45 \\
+ A^* &= \frac{1}{4}(-85.5+86.75-80.25+81.3) = 0.575 \\
+ B^* &= \frac{1}{4}(-85.5-86.75+80.25+81.3) = -2.675 \\
+ (AB)^* &= \frac{1}{4}(85.5-86.75-80.25+81.3) = -0.05 \\
+ s^2_p &= \frac{1}{4}(0.02+0.045+0.045+0.02) = 0.0325 \\
+\end{align*}
+```
+
+Forskarna misstänkte att sambandseffekten var liten. För att testa huruvida den är skild från noll kan vi antingen göra detta med ett t-test, alternativt skapa ett konfidensintervall för att se hurvida intervallet täcker nollan eller inte. Hypoteserna formuleras enligt:
+```{=tex}
+\begin{align*}
+H_0&: AB = 0 \\
+H_1&: AB \neq 0
+\end{align*}
+```
+
+där konfidensintervallet beräknas enligt: 
+$$
+I_{AB, 1-\alpha} = AB^* \pm t_{0.025, 4} \cdot \sqrt{\frac{s^2_p}{n \cdot 2^k}} = -0.05 \pm 2.78 \cdot \sqrt{\frac{0.0325}{8}} =\ [-0.2272 \qquad 0.1272]
+$$
+
+Då konfidensintervallet täcker nollan finns inte tillräckliga bevis för att förkasta nollhypotesen $H_0$. Sambandseffekten har därför ingen påverkan. Vidare konfirmeras detta genom att det i ANOVA-tablån i tabell \ref{tab:anova-2-del-2} går att uttyda att interaktionseffekten ej är signifikant, då $P(>F)=0.8974$.
+
+```{r factorial-anova}
+aov(Output ~ Ind_Add_time * Ind_Stir_time, data = Nitration_I) %>% summary() %>% 
+  xtable(caption = "ANOVA summering", type = "latex", label = "tab:anova-2-del-2") %>% 
+  xtable2kable()
+  # tidy() %>% 
+  # kable(format = "latex",
+  #       caption = "Summering ANOVA Nitrations-process",
+  #       align = "c",
+  #       digits = 3,
+  #       booktabs = TRUE) %>% 
+  # kable_styling(latex_options = "HOLD_position", full_width = FALSE)
+```
+
+\pagebreak 
+
+
+## Marginal-means
+<!-- Interaction plot av de olika stir och add_time -->
+För att illustrera sambandseffekten är interaction-plot ett effektivt sätt för att göra detta. Här kan vi uttyda att linjerna är parallella vilket indikerar att en sambandseffekt inte föreligger, likt vad ANOVA testet också påvisade. Detta tillåts då vi har $n \geq 2$ per faktorkombination. Om inte så är fallet kan sambandseffekten inte undersökas. 
+
+```{r interaction-plot, fig.align='center', fig.cap='Interaction-plot'}
+Nitration_I %>% 
+    group_by(Ind_Add_time, Ind_Stir_time) %>%
+    summarise(Medel = mean(Output)) %>%  
+    ggplot(aes(x = Ind_Add_time, y = Medel, group = Ind_Stir_time, color = Ind_Stir_time)) + 
+    geom_point() + 
+    stat_summary(fun = sum, geom = "line") + 
+    labs(title = "Interaction-plot", y = "Estimerat marginal means") +
+    theme_bw() + 
+    theme(text = element_text(family = "serif", size = 14),
+          plot.title = element_text(hjust = 0.5), 
+          legend.position = "bottom")
+```
+
+\pagebreak
+## Residualanalys
+<!-- Residualanalys -->
+
+```{r residual-diagnostics, fig.align='center', fig.cap="Residual-plottar"}
+histogram <- data.frame(Output = Nitration_I$Output, Residuals = resid( aov(Output ~ Ind_Add_time * Ind_Stir_time, data = Nitration_I) )) %>%
+  ggplot(aes(x = Residuals)) +
+  geom_histogram(binwidth = 0.5) +
+  labs(title = "Residual histogramplot", x = "Residual", y = "Output") +
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 14))
+
+qqplot <- data.frame(y = resid( aov(Output ~ Ind_Add_time * Ind_Stir_time, data = Nitration_I) )) %>% 
+    ggplot(aes(sample = y)) +
+    stat_qq() + 
+    stat_qq_line(color = "red") +
+    labs(title = "Normal QQ-plot") +
+    theme_bw() + 
+    theme(text = element_text(family = "serif", size = 14))
+
+combined_plots <- grid.arrange(histogram, qqplot, ncol = 2)
+
+```
+
+Likt vad som i tidigare avsnitt diskuterats måste modellen valideras genom att undersöka huruvida residualerna uppfyller de grundläggande antagandena, eller ej. I Figur \@ref(fig:residual-diagnostics) ser vi att residualerna till synes är tillräckligt normalfördelade med ett väntevärde om 0. Modellen uppfyller därför antagandet om $\varepsilon \sim \mathcal{N}(0,\sigma_{\varepsilon})$ och modellen kan valideras.
+
+## Prediktion
+
+I detta avsnitt predikteras responsvariabeln $Y_{ij}$ då 'Add_time' är 5 & 10 istället för 2 respektive 7, samt 1 & 4 istället för 0.5 respektive 4 för 'Stir_time'. I tabell \@ref(tab:new-prediction) kan de observerade värdena utläsas samt prediktionen med de uppdaterade värdena. Detta görs, istället för en ANOVA-modell, genom en multipel regression där responsvariabeln förklaras av de två oberoende variablerna 'Add_time' samt 'Stir_time'. De predikterade värdena $\hat{y}_{ij}$ fås genom 
+$$
+\hat{y}_{ij}= \beta_0 + \beta_{A}x_1 + \beta_{B}x_2 + \beta_{AB}x_1x_2 
+$$
+<!-- Prediktering av Output med nya värden -->
+Summering av den passade regressionsmodellen finnes i tabell \ref{tab:regression-summary}. Här kan, inte så förvånade, ses att p-värdet för F-statistikan för interaktionseffekten är densamma som i ANOVA, alltså ej signifikant. För att validera modellen undersöks residualerna återigen och ganska omgående inses att även residualerna är densamma för ANOVA i figur \@ref(fig:residual-diagnostics) som för regressionen. (Jämför Figur \@ref(fig:residual-diagnostics) &  \@ref(fig:residual-regression-1)). Modellen kan därför, enligt tidigare beslut, valideras och prediktioner av nya värden bör vara tillfredställande.
+
+```{r regression-model}
+model <- lm(Output ~ Add_time * Stir_time, data = Nitration_I)
+
+model %>% xtable(format = "latex", caption = "Summering Regression", label = "tab:regression-summary") %>% xtable2kable()
+# model %>% 
+#   tidy() %>% 
+#   kable(format = "latex",
+#     caption = "Regression summering",
+#     align = "c",
+#     digits = 3,
+#     booktabs = TRUE,
+#     linesep = ""
+# ) %>%
+# kable_styling(latex_options = "HOLD_position", full_width = FALSE)
+```
+
+```{r residual-regression-1, echo=FALSE, message=FALSE, out.width= "80%", fig.align='center', fig.cap= 'Reisudalplottar ANOVA'}
+histogram_reg <- data.frame(Output = Nitration_I$Output, Residuals = resid( model )) %>%
+  ggplot(aes(x = Residuals)) +
+  geom_histogram(binwidth = 0.5) +
+  labs(title = "Residual histogramplot", x = "Residual", y = "Output") +
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 14))
+
+qqplot_reg <- data.frame(y = resid( model )) %>% 
+    ggplot(aes(sample = y)) +
+    stat_qq() + 
+    stat_qq_line(color = "red") +
+    labs(title = "Normal QQ-plot") +
+    theme_bw() + 
+    theme(text = element_text(family = "serif", size = 14))
+
+combined_plots_reg <- grid.arrange(histogram_reg, qqplot_reg, ncol = 2)
+
+```
+
+\pagebreak
+I nedan tabell går att utläsa de uppmätta observationerna samt de predikterade värdena då 'Add_time' och 'Stir_time' är nya. Vi kan se att de predikterade värdena i sex fall utav åtta är större än de uppmätta värdena.
+
+```{r new-prediction}
+new_data <- data.frame(Add_time = c(5, 10, 5, 10, 5, 10, 5, 10),
+                       Stir_time = c(1, 1, 4, 4, 1, 1, 4, 4))
+
+data.frame(Output = Nitration_I$Output, Add_time = Nitration_I$Add_time, Stir_time = Nitration_I$Stir_time, Add_time_new = new_data$Add_time, Stir_time_new = new_data$Stir_time, Predikterat = predict(model, newdata = new_data)) %>% mutate('+/-' = Predikterat - Output) %>% 
+kable(format = "latex",
+    caption = "Observerat vs. predikterat",
+    align = "c",
+    digits = 3,
+    booktabs = TRUE,
+    linesep = ""
+) %>%
+kable_styling(latex_options = "HOLD_position", full_width = FALSE)
+```
+
+
+
+## ANOVA vs. Regression
+
+Båda metoderna använder Minsta-kvadrat-metoden där ANOVA’s syfte är att jämföra medelvärden mellan två eller fler grupperingar. En enkel eller multipel regression’s syfte är istället att undersöka om ett linjärt samband mellan den beroende och oberoende variablerna föreligger. Den räta linjens ekvation vilken regressionen passar kan användas i syfte att förklara ett linjärt samband såväl som prediktion av icke-observerad data.
+
+I huvudsak ställer regression samma antaganden som ANOVA. Normalfördelade, oberoende variabler där residualerna skall ha konstant varians med väntevärdet noll. De oberoende variablerna skall även vara oberoende för att multikolinjäritet ej skall uppstå. Antaganden för ANOVA-2, är likt multipel linjär regression, att de två förklarande variablerna skall vara oberoende, normalfördelade inom varje gruppering, samt ha konstant varians.
+
+
+<!--  ```{r prediction} -->
+<!-- k <- aov(Output ~ Ind_Add_time * Ind_Stir_time, data = Nitration_I) -->
+
+<!-- # Lägger här in de nya vrädena vilka prediktionen skall baseras på -->
+<!-- new_data <- data.frame( -->
+<!--   Ind_Add_time = factor(c(-1, 1, -1, 1)), -->
+<!--   Ind_Stir_time = factor(c(-1, -1, 1, 1)), -->
+<!--   Add_time = c(5, 10, 5, 10), -->
+<!--   Stir_time = c(1, 1, 4, 4) -->
+<!-- ) -->
+
+<!-- predicted <- predict(k, newdata = new_data) -->
+<!-- ``` -->
+

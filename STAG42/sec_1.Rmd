@@ -1,0 +1,117 @@
+---
+title: " "
+output: pdf_document
+header-includes:
+  - \usepackage{float}
+  - \usepackage{sectsty}
+---
+
+```{r setup-avsnitt-1, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center',
+                      out.width = "80%")
+source("C:/Users/claes/OneDrive/R programmering/Rmarkdown_templates/Rapport_template/script_kod.R")
+require(tidyverse)
+require(broom)
+require(knitr)
+require(kableExtra)
+require(ISLR)
+require(FSA)
+require(xtable)
+require(gridExtra)
+```
+
+```{r data-long}
+data_long <- read.csv("C:/Users/claes/OneDrive/Universitet/Statistik Fortsättningskurs/STAA42 Grundkurs 2/Del1 - Praktik/Datorlaborationer/inlamning_4/data/tabell_uppgift1.csv", sep=";") %>% mutate(Chemical = as.factor(Chemical),
+               Roll = as.factor(Roll))
+```
+
+# Del 1
+
+![Data](img/data_1_img.png)
+
+Baserat på datamaterialet vilket undersöker huruvida 'Chemical' har en påverkan på hållbarheten av en viss typ av textil. Mera är datan grupperad i block där 'Roll' representerar vilket block respektive observation tillhör. I tabell \@ref(tab:textiler-summary) är datan summerat per både rad och kolumn.
+
+```{r textiler-summary}
+kable(
+  list(
+    data_long %>% group_by(Chemical) %>% summarise(Medel = mean(Value)),
+    data_long %>% group_by(Roll) %>% summarise(Medel = mean(Value))
+  ),
+    format = "latex",
+    caption = "Summerat per Chemical, Roll",
+    align = "c",
+    digits = 3,
+    booktabs = TRUE
+  ) %>%
+    kable_styling(latex_options = "HOLD_position", full_width = FALSE)
+```
+
+
+
+## ANOVA(1)
+Vid den ANOVA(1)-modell som formuleras utefter datan presenterad ovan har modellen således ett genomsnittligt medelvärde $\mu$ för alla observationer, mera kommer avvikelserna för Faktor A, alltså 'Chemical', representeras av $\alpha$ och slutligen $\beta$ vilken representerar avvikelserna från medelvärdet för blocken. Modellen förmuleras då enligt: 
+
+$$Y_{ij} = \mu + \alpha_i + \beta_j + \varepsilon_{ij}, \quad \varepsilon \sim \mathcal{N}(0, \sigma)$$
+
+```{r anova-summering-del-1}
+anova_1_1 <- data_long %>% aov(Value ~ Chemical + Roll, data = .) 
+
+anova_1_1 %>% summary() %>% xtable(caption = "ANOVA summering", type = "latex", label = "tab:anova-1-del-1") %>% xtable2kable()
+```
+
+I tabell \ref{tab:anova-1-del-1} presenteras den summeringsstatistik från ANOVA(1) modellen. Här kan uttydas att typen av kemikalie inte är signifikant då $P>\alpha=0.05$, däremot är blocken signifikanta. Medelvärdena mellan blocken skiljer sig däremed åt på 5%-nivån. 
+
+## Residualanalys 
+
+För att validera resultaten måste residualerna $\varepsilon$ uppfylla de grundläggande antaganden. De skall vara oberoende, normalfördelade, ha konstant varians med väntevärdet noll.  
+
+```{r residual-anova-1, echo=FALSE, message=FALSE, out.width= "80%", fig.align='center', fig.cap= 'Reisudalplottar ANOVA'}
+histogram <- data.frame(Value = anova_1_1$model$Value, Residuals = resid(anova_1_1)) %>%
+  ggplot(aes(x = Residuals)) +
+  geom_histogram(binwidth = 0.5) +
+  labs(title = "Residual histogramplot", x = "Residual", y = "Value") +
+  theme_bw() +
+  theme(text = element_text(family = "serif", size = 14),
+        legend.position = "bottom")
+
+qqplot <- data.frame(y = resid(anova_1_1) ) %>% 
+  ggplot(aes(sample = y)) +
+  stat_qq() + 
+  stat_qq_line(color = "red") +
+  labs(title = "Residual QQ-plot") +
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 14))
+
+combined_plots <- grid.arrange(histogram, qqplot, ncol = 2)
+
+```
+
+Residualerna följer den teoretiska normalfördelningen, enligt författarna, tillräckligt väl samtidigt som medelvärdet $\bar{x}_{resiualer} = 3.33216 \times 10^{-17} \approx 0$. Antagandena anses därmed vara uppfyllda och modellen kan valideras. 
+
+## Friedmans test
+
+Ytterligare ett test genomförs. Friedman´s test är ett icke-parametriska test som undersöker om någon av de olika kemikalierna statistiskt skiljer sig åt i att stärka tyget. Hypoteserna för testet formuleras enligt:
+
+
+```{=tex}
+\begin{align*}
+H_0&: \mu_1 = \mu_2 = \mu_3 = \mu_4 \\
+H_1&: \mu_i \neq \mu_j \text{ för någon } \mu_i \neq \mu_j \\
+\end{align*}
+```
+
+```{r}
+friedman.test(data_long$Value, data_long$Chemical, data_long$Roll) %>% 
+  tidy() %>% 
+  select(1:3) %>%
+  mutate(Beslut = ifelse(p.value >= 0.05, "Förkasta inte H0 på 5%", "Förkasta H0 på 5%")) %>% 
+  rename(Statistika = statistic, `P-värde` = p.value, DF = parameter) %>% 
+  kable(booktabs = TRUE, digits = 4, caption = "Friedmans Rank sum test") %>% 
+  kable_styling(latex_options = "HOLD_position", full_width = FALSE)
+  
+```
+Någon skillnad mellan grupperna går ej att statistiskt säkerställa.
+
+\vspace{0.5cm}
