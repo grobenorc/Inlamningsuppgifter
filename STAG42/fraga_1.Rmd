@@ -1,0 +1,96 @@
+---
+title: " "
+output: pdf_document
+header-includes:
+  - \usepackage{float}
+  - \usepackage{sectsty}
+---
+
+```{r, echo = FALSE, message= FALSE}
+require(tidyverse)
+require(haven)
+require(knitr)
+require(kableExtra)
+require(xtable)
+require(flextable)
+```
+
+
+# Darwin's experiment on the plant Zea mays
+
+Darwin genomförde ett test på 15 par majsväxter. Varje par innehöll en majs som var korsbefruktad och en som var självbefruktad. Utöver det kom och levde växterna under samma förhållanden. Darwin mätte sedan höjden på de olika växterna i paren för att se om det faktiskt går att bevisa den övertygelse om att korsbefruktade växter är bättre än självbefruktade. 
+
+\begin{center}
+Is this an experiment of good design according to the three basic principles in experimental design; replication, randomization and blocking?
+\end{center}
+
+Att experimentet uppfyller randomization går att diskutera men eftersom Darwin tar växter från en stor grupp växter som alla har haft samma förhållanden samt samma föräldrar uppfyller experimentet kravet. Blocking används på det sättet att alla växter ingår i samma block och där alla påverkande variabler är desamma. Då testet innerhåller 15 par uppfyller det också målet med replication. Detta gör att det är ett “experiment of good design”.
+
+Vi kan testa Darwins teori genom att genomföra ett statistiskt test för att se om huruvida det är statistiskt säkerställt eller inte. I det test som utförs är det höjden på växterna som är den beroende variabeln. Höjden kan logiskt antas vara normalfördelad och ett passande test att genomföra är då ett “Paired T-test”. Hypoteserna formuleras då enligt följande:
+```{=tex}
+\begin{align*}
+H_0&: \text{Det är ingen skillnad i höjd mellan självbefruktade och korsbefruktade växter.} \\
+H_1&: \text{Det är en skillnad i höjd mellan självbefruktade och korsbefruktade växter.}
+\end{align*}
+```
+
+
+
+## T-test
+```{r, echo=FALSE, message = FALSE, warning=FALSE, include = FALSE}
+DarwinData <- read_sav("data/DarwinData.sav", encoding = "latin1") %>% 
+              mutate(Cross = parse_number(Cross)*0.1,
+                     Self = parse_number(Self)*0.1)
+```
+
+
+<!-- ```{r summering-darwin-tab, echo=FALSE, message = FALSE, warning=FALSE} -->
+<!-- DarwinData %>%  -->
+<!--     pivot_longer(., Cross:Self, names_to = "Namn", values_to = "Värden") %>%  -->
+<!--     group_by(Namn) %>%  -->
+<!--     summarise(Mean = mean(Värden), -->
+<!--               N = n(), -->
+<!--               sd = sd(Värden), -->
+<!--               SE = sd(Värden) / sqrt(n())) %>%  -->
+<!--     knitr::kable(format = "latex", caption = "Summeringstabell data", align = "l", digits = 4, booktabs = TRUE) %>%  -->
+<!--     kable_styling(latex_options = "HOLD_position") -->
+<!-- ``` -->
+
+```{r fig-paired-t-test, echo = FALSE, warning = FALSE, fig.align='center', fig.cap= 'Paired t-test', out.width= "80%"}
+include_graphics("img/paired_t_test_summary.png")
+
+```
+
+```{r fig-paired-t-test-2, echo = FALSE, warning = FALSE, fig.align='center', fig.cap= 'Paired t-test', out.width= "80%"}
+include_graphics("img/paired_t_test_2.png")
+
+```
+I figur \@ref(fig:fig-paired-t-test) & \@ref(fig:fig-paired-t-test-2)  ser vi summeringen av t-testet, bland annat de två plantornas stickprovsmedelvärde $\bar{x}$, antalet observationer $N$, stickprovsstandardavvikelse $s^2$ och slutligen standardfelet av medelvärdet $SE$, per varje planta. Med en signifikansnivå på 5% kan vi inte förkasta H0  då konfidensintervallet “täcker” nollan även fast det är på marginalen (- 0,0032 mot 5,2165). Det “Paired T-test” som vi har genomfört kan alltså inte med signifikans bevisa att det finns en skillnad mellan höjden på självbefruktade och korsbefruktade växter. 
+
+Alla förhållandena för att genomföra ett parametriskt test var uppfyllda men normalfördelningen i testet kan ifrågasättas. Figur \@ref(fig:histogram-t-test) visar skillnaden i höjd mellan växterna. Diagrammet saknar viss data för att fullständigt kunna påvisa normalfördelning.
+
+```{r histogram-t-test, echo = FALSE, warning = FALSE, fig.align='center', fig.cap= 'Grupperat histogram', out.width= "80%"}
+include_graphics("img/histogram_grupperat.png")
+
+```
+
+
+## Wilcoxon-test
+Vi testar samma hypoteser igen fast med ett Tecken-rangtest, alltså:
+```{=tex}
+\begin{align*}
+H_0&: \text{Det är ingen skillnad i höjd mellan självbefruktade och korsbefruktade växter.} \\
+H_1&: \text{Det är en skillnad i höjd mellan självbefruktade och korsbefruktade växter.}
+\end{align*}
+```
+
+```{r signed-rank-summary, echo = FALSE, warning = FALSE, fig.align='center', fig.cap= 'Signed rank summary', out.width= "80%"}
+include_graphics("img/signed_rank_1.png")
+```
+
+Efter tolkning av testet i figur \@ref(fig:signed-rank-summary) förkastas nollhypotesen $H_0$ på 5%-nivån. Även fast att “paired t-test” inte statistiskt kunde bevisa att det fanns en skillnad gjorde det icke-parametriska testet det. En orsak till skillnaden kan vara den bristande normalfördelningen. Vår signifikans var 5% och testets P-värde var 4,1% vilket är lägre. Tecken-rang testet visar att om de undersökta växterna inte är normalfördelad går det att statistiskt bevisa att det finns en skillnad mellan självbefruktade och korsbefruktade växter.
+
+
+Då Darwin ville testa om detta gällde för alla växter kan ett test på 15 par av samma växt tyckas vara väl litet. Experimentet behöver genomföras ytterligare gånger med andra växter och med andra förutsättningar för att kunna bevisa det för hela växtriket. Med ett relativt litet test finns det många variabler som kan vara fel och då påverka hela experimentets resultat.
+
+

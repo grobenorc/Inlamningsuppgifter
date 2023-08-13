@@ -1,0 +1,305 @@
+---
+title: ''
+output:
+  bookdown::pdf_document2
+---
+
+```{r, echo = FALSE, message= FALSE}
+require(tidyverse)
+require(haven)
+require(knitr)
+require(kableExtra)
+require(xtable)
+require(pander)
+require(ggpubr)
+require(car)
+require(gridExtra)
+require(flextable)
+```
+
+# Silver coins from Byzantine
+
+\vspace{0.5cm}
+
+### Data
+
+```{r, echo=FALSE, message=FALSE}
+SilverData <- read_sav("data/SilverData.sav")
+```
+
+I denna del av inlämningen undersöks data om mynt och dess innehåll av silver [AG]. Mynten insamlades under olika regenters tid vilket lett till att vi skall undersöka huruvida innehållet av silver i mynten skiljer sig åt mellan de olika regenternas styre. Inledningsvis undersöks om vi statistiskt säkerställa att mynten skiljer sig under någon av de fyra tidsperioderna. Avslutningsvis kommer vi även undersöka om det skiljer sig åt mellan de två första perioderna, och de två sista perioderna. Här kommer det alltså bli ett grupperat datamaterial där det istället undersöks skillnader mellan två perioderna, istället för fyra. I båda av dessa uppdelningar är således den förklarande variabeln kategorisk samtidigt som responsvariabeln är kvantitativ. För att undersöka denna typ av datamaterial kommer således ANOVA-metoden användas. Hypotesen i ett Anova-1 test formuleras enligt:
+```{=tex}
+\begin{align*}
+H_0&: \mu_1 = \mu_2 = ... = \mu_n \\
+H_1&: \mu_i \neq \mu_j \text{ För någon } i \text{ och } j \text{ där } i \neq j
+\end{align*}
+```
+Här ser vi således att testet ger signifikans endast om en av grupperna avviker stort från de övriga grupperna. För att genomföra detta test måste ett par grundläggande antaganden vara uppfyllda:
+
+-   Data inom varje gruppering skall vara normalfördelad
+-   Homogen varians $\sigma_1^2 \approx \sigma_2^2 \approx ...\approx\sigma_n^2$
+-   Observationerna är oberoende
+
+Vid genomförandet av Anova-testet har vi teststatistikan $F$ vilket är ett relativt mått mellan två varianser vilken kan uttryckas i:
+$$
+F = \dfrac{\text{Mellan-grupp varians}}{\text{Inom-grupp varians}}
+$$
+Matematiskt är 'Mellan-grupp varians':
+$$
+\sum_{i=1}^K n_i(\bar{Y}_i-\bar{Y})^2 / (K-1)
+$$
+där $\bar{Y}_i$ är stickprovsmedelvärdet i den $i:te$ gruppen, $n_i$ antalet observationer i den $i:te$ gruppen, $\bar{Y}$ stickprovsmedelvärdet av all data, och $K$ antalet grupperingar.
+
+
+'Inom-grupp varians' formuleras enligt:
+$$
+\sum_{i=1}^K \sum_{j=1}^{n_i} (\bar{Y}_{ij}-\bar{Y})^2 / (N-K)
+$$
+där $Y_{ij}$ är den $j:te$ observationen i den $i:te$ av $K$ grupper och $N$ stickprovsstorleken för all data.
+
+## ANOVA ogrupperat
+
+```{r boxplot-coinage, echo=FALSE, message = FALSE, warning=FALSE,  fig.cap ="Boxplot silverhalt grupperat per 'Coinage'", fig.align='center', out.width="80%"}
+SilverData %>% 
+  ggplot(aes(x = factor(Coinage), y = Silver, fill = factor(Coinage)) ) + 
+  geom_boxplot() + 
+  labs(title = "Silverhalt grupperat per 'Coinage'", 
+       x = "'Coinage'", 
+       y = "Silverhalt", 
+       fill = "Coinage") + 
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 18),
+        legend.position = "bottom")
+ggsave("img/boxplot_coinage.png", plot = last_plot())
+
+```
+
+För att få en initial uppfattning av hur silverhalten är fördelad inom varje 'Coinage' kan vi uttyda i figur \@ref(fig:boxplot-coinage) att silverhalterna vid en första anblick verkar skilja sig åt. Däremot måste detta testas innan vi kan göra ett säkert uttalande om detta. 
+
+<!-- ```{r qq-plot-coinage, echo=FALSE, message = FALSE, warning=FALSE, fig.cap ="QQ-plot per 'Coinage'", fig.align='center', out.width="70%"} -->
+<!-- SilverData %>%  -->
+<!--   ggplot(aes(sample = Silver, color = factor(Coinage))) +  -->
+<!--   stat_qq() +  -->
+<!--   stat_qq_line() + -->
+<!--   facet_wrap(~Coinage) +  -->
+<!--   labs(title = "QQ-plot per 'Coinage'", x = "Teoretisk kvantil", y = "Silverhalt", color = "Coinage") + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(family = "serif", size = 18), -->
+<!--         legend.position = "bottom") -->
+<!-- ``` -->
+
+
+```{r qq-plot-coinage, echo=FALSE, message = FALSE, warning=FALSE, fig.cap ="QQ-plot per 'Coinage'", fig.align='center', out.width="80%"}
+SilverData %>% 
+  mutate(Coinage = factor(Coinage)) %>% 
+  ggqqplot(., x = "Silver", color = "Coinage", facet.by = "Coinage", title = "QQ-plot stickprov", ggtheme = theme_bw()) + 
+  theme(text = element_text(family = "serif", size = 18), 
+        legend.position = "bottom")
+```
+
+När vi studerar figur \@ref(fig:qq-plot-coinage) är styrlinjerna den teoretiska normalfördelningskvantilerna. Observationerna verkar till synes vara normalfördelade inom varje gruppering men kommer även testas genom att göra ett 'Shapiro-Wilks' test. Grunden i testet är att undersöka korrelation mellan observationerna och dess teoretiska normalfördelade värde. Hypoteserna formuleras enligt:
+```{=tex}
+\begin{align*}
+H_0&: \text{Observationerna är normalfördelade} \\
+H_1&: \text{Observationerna är inte normalfördelade}
+\end{align*}
+```
+
+Vi förkastar $H_0$ då $p_{obs} \le \alpha$, alltså följer då observationerna en normalfördelning. I tabell \@ref(tab:shapiro-coinage) ser vi att den grafiska utydningen faktiskt var korrekt, detta då vi inte kan förkasta $H_0$ i någon av grupperingarna 5%-nivån. Slutligen behöver även antagandet om homogenea varianser uppfyllas vilket testas med 'Levene'-test. Här är hypoteserna, likt ANOVA men med lika standardavvikelser istället för medelvärde, att alla är samma. Alltså:
+```{=tex}
+\begin{align*}
+H_0&: \sigma^2_1 = \sigma^2_2 = ... = \sigma^2_n \\
+H_1&: \sigma^2_i \neq \sigma^2_j \text{ För någon } i \text{ och } j \text{ där } i \neq j
+\end{align*}
+```
+
+
+```{r shapiro-coinage, echo=FALSE, message = FALSE, warning=FALSE}
+SilverData %>% mutate(Coinage = factor(Coinage)) %>% 
+  group_by(Coinage) %>% 
+    summarise(W_statistic = shapiro.test(Silver)$statistic,
+              p_value = shapiro.test(Silver)$p.value) %>% 
+    mutate(across(W_statistic:p_value, ~ round(., 4)),
+           Förkasta = ifelse(p_value > 0.05, FALSE, TRUE),
+           Beslut = ifelse(p_value > 0.05, "Förkasta inte H0 på 5%", "Förkasta på 5%")) %>%
+  select(-Förkasta) %>% 
+  knitr::kable(format = "latex", caption = "Summeringstabell Shapiro-Wilks 'Coinage'", align = "c", digits = 3, booktabs = TRUE) %>% 
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
+```{r levene-coinage, echo=FALSE, message = FALSE, warning=FALSE}
+SilverData %>%
+  mutate(Coinage = factor(Coinage)) %>% 
+  car::leveneTest(Silver ~ Coinage, data = .) %>% 
+  kable(format = "latex", caption = "Levene test Silver data", booktabs = TRUE, digits = 3) %>% 
+  kable_styling(latex_options = "HOLD_position")
+```
+I tabell \@ref(tab:levene-coinage) kan vi utläsa att $p_{obs}>\alpha_{0.05}$, nollhypotesen $H_0$ kan inte förkastas. Vi har därmed statistiskt säkerställt att grupperingarna även har lika varians på 5%-nivån. Antagandet om oberoende och normalfördelade observationer, med lika varians är därmed uppfyllt och vi kan gå vidare med analysen genom ANOVA.
+
+
+
+```{r anova-coinage, echo=FALSE, message = FALSE, warning=FALSE}
+silver_anova <- SilverData %>% mutate(Coinage = factor(Coinage)) %>% aov(Silver ~ Coinage, data = .)
+
+summary(silver_anova) %>% 
+  xtable::xtable() %>% 
+  kable(format = "latex", caption = "Modell: Anova = Silver av Grupp", booktabs = TRUE, digits = 3) %>% 
+  kable_styling(latex_options = "HOLD_position")
+```
+
+I tabel \@ref(tab:anova-coinage) ser vi summeringsstatistiken från ANOVA-testet, och i och med det låga p-värde, förkastar vi nollhypotesen $H_0$. Det finns en statistiskt säkerställd skillnad i mängden Silver mellan grupperna, på 5%-nivån. 
+
+
+### Residualanalys
+
+```{r residual-anova, echo=FALSE, message=FALSE, out.width= "80%", fig.align='center', fig.cap= 'Reisudalplottar ANOVA'}
+histogram <- data.frame(Silver = silver_anova$model$Silver, Residuals = resid(silver_anova)) %>%
+  ggplot(aes(x = Residuals)) +
+  geom_histogram(binwidth = 0.5) +
+  labs(title = "Residual histogramplot", x = "Residual", y = "Silver") +
+  theme_bw() +
+  theme(text = element_text(family = "serif", size = 18),
+        legend.position = "bottom")
+
+qqplot <- data.frame(y = resid(silver_anova) ) %>% 
+  ggplot(aes(sample = y)) +
+  stat_qq() + 
+  stat_qq_line(color = "red") +
+  labs(title = "Normal probability plot") +
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 18),
+        legend.position = "bottom")
+
+combined_plots <- grid.arrange(histogram, qqplot, ncol = 2)
+
+```
+
+I figur \@ref(fig:residual-anova) ser vi residualerna från ANOVA modellen enligt tidigare. Här kan vi enligt histogrammet uttyda att residualerna verkar någorlunda normalfördelade. Enligt 'Normal-probability-plot' ser vi också att residualerna verkar följa den teoretiska normalfördelningen väl. Här blir det däremot tydligt att avvikelserna, med andra ord residualerna, ser ut att vara mindre vid de lågt uppmätta värdena. Vi anser däremot att dessa avvikelser är små, och därför väljer vi att validera modellen. 
+
+
+## Tukey test
+
+- Parvis bedömning
+- Bra mot olika stickprovsstorlekar
+
+De antaganden som Tukey-test gör är densamma som för ANOVA; oberoende, normalfördelade med lika varians. Det har sedan tdigare testats och blev då uppfyllda på 5%-nivån.
+
+Nollhypotesen är likt ANOVA om någon av de parvisa bedömningar statistiskt skiljer sig åt: 
+
+```{=tex}
+\begin{align*}
+H_0&: \mu_1 = \mu_2 = ... = \mu_n \\
+H_1&: \mu_i \neq \mu_j \text{ För någon } i \text{ och } j \text{ där } i \neq j
+\end{align*}
+```
+
+
+```{r tukey-coinage, echo=FALSE, message = FALSE, warning=FALSE}
+tukey_result <- TukeyHSD(silver_anova)
+
+as.data.frame(tukey_result$`Coinage`) %>% 
+    rownames_to_column(var = "Jämförelse") %>% 
+    mutate(p_adj = tukey_result$`Coinage`[,4],
+           Beslut = ifelse(tukey_result$`Coinage`[,4] < 0.05, "Förhasta H0", "Förkasta inte H0")) %>% 
+    select(Jämförelse, diff, lwr, upr, p_adj, Beslut) %>% 
+    kable(format = "latex", caption = "Summering av Silver data Tukey HSD", booktabs = TRUE, digits = 3) %>% 
+    kable_styling(latex_options = "HOLD_position")
+
+```
+Här ser vi tabell \@ref(tab:tukey-coinage) att det, på 5% nivån, endast är grupp 3&4 som inte går att särskilja. Mellan resterande parvisa jämförelser förkastas nollhypotesen $H_0$ och skillnader i medelvärden är statistiskt säkerställda. 
+
+
+
+## Kruskal-wallis
+
+Även om vi tidigare testade huruvida observationerna var normalfördelade presenteras i detta avsnit ett icke-parametriskt test vilket där normalfördelade observationer inte är ett måste. Kruskal-Wallis testet undersöker istället huruvida medianerna mellan grupperingar skiljer sig åt, vilket då är mindre känsligt för att ha icke-normalfördelade observationer. Hypoteserna formuleras då enligt:
+```{=tex}
+\begin{align*}
+H_0&: \tilde{\mu}_i = \tilde{\mu}_j \\
+H_1&: \tilde{\mu}_i \neq \tilde{\mu}_j \text{ För någon } i \text{ och } j \text{ där } i \neq j
+\end{align*}
+```
+
+
+```{r kruskal-test-summary, echo=FALSE, warning=FALSE}
+data.frame(Statistika = as.character( round(kruskal.test(Silver ~ Coinage, data = SilverData)$statistic, digits = 4)),
+           DF = as.character(kruskal.test(Silver ~ Coinage, data = SilverData)$parameter),
+           Method = kruskal.test(Silver ~ Coinage, data = SilverData)$method,
+           P_value = as.character( round(kruskal.test(Silver ~ Coinage, data = SilverData)$p.value), digits = 6 )) %>% pivot_longer(., everything(), names_to = "Variable", values_to = "Value") %>% 
+  kable(format = "latex", caption = "Summering av Silver Kruskal Wallis", booktabs = TRUE, digits = 3) %>% 
+    kable_styling(latex_options = "HOLD_position")
+```
+
+
+Vi kan av tabell \@ref(tab:kruskal-test-summary) se att p-värdet är under signifikansnivån (5%) och vi har tillräckligt med bevis för att förkasta nollhypotesen $H_0$. Det finns, enligt Kruskal-Wallis test, en statistiskt säkerställd skillnad i grupperingarnas median.
+
+```{r}
+kruskal.test(Silver ~ Coinage, data = SilverData) %>% 
+  broom::tidy() %>% 
+  knitr::kable(format = "latex", caption = "Summering av Silver Kruskal Wallis", booktabs = TRUE, digits = 3) %>% 
+  kable_styling(latex_options = "HOLD_position")
+```
+```{r}
+kruskal.test(Silver ~ Coinage, data = SilverData) %>% 
+  broom::augment()
+```
+
+
+<!-- ```{r, echo=FALSE, message = FALSE, warning=FALSE} -->
+<!-- SilverData %>% mutate(Coinage = factor(Coinage)) %>%  -->
+<!--   group_by(Coinage) %>%  -->
+<!--   summarise(Mean = mean(Silver), -->
+<!--             N = n(), -->
+<!--             sd = sd(Silver)) %>%  -->
+<!--   knitr::kable(format = "latex", caption = "Summeringstabell Silver coins", align = "l", digits = 4, booktabs = TRUE) %>%  -->
+<!--   kable_styling(latex_options = "HOLD_position") -->
+<!-- ``` -->
+
+
+\pagebreak
+## Gruppering
+
+Då vi vet, i och med de tidigare testen, att det föreligger en statistiskt säkerställd skillnad mellan mängden silver i mynten efterfrågas då om vi kan särskilja grupperna 1&2 mot 3&4. 
+```{r boxplot-grupperad, echo=FALSE, message=FALSE, out.width= "80%", fig.align='center', fig.cap= 'Boxplot grupperat två perioder'}
+SilverData %>% 
+  mutate(Gruppering_ny = ifelse(Coinage == 1 | Coinage == 2, "Period 1", "Period 2")) %>% 
+  ggplot(aes(x = Gruppering_ny, y = Silver, color = Gruppering_ny)) + 
+  geom_boxplot() + 
+  labs(title = "Boxplot grupperat", x = "", y = "Silver", color = "Gruppering") + 
+  theme_bw() + 
+  theme(text = element_text(family = "serif", size = 18),
+        legend.position = "bottom")
+```
+Till synes enligt figur \@ref(fig:boxplot-grupperad) verkar perioderna skilja sig åt. För att testa och statistiskt säkerställa detta använder vi oss Wilcox-testet återigen. Detta kan vi göra då vi nu enbart har två grupper och hypotesen formuleras enligt:
+ 
+```{=tex}
+\begin{align*}
+H_0&: \text{Populationernas fördelningarna är lika} \\
+H_1&: \text{Populationernas fördelningarna är inte lika}
+\end{align*}
+```
+
+```{r wilcox-test-silver-grupperad, echo = FALSE, warning = FALSE}
+silver_grouped <- SilverData %>% 
+  mutate(Gruppering_ny = ifelse(Coinage == 1 | Coinage == 2, "Period 1", "Period 2"))
+
+data.frame(Statistika = as.character( round(wilcox.test(Silver ~ Gruppering_ny, data = silver_grouped)$statistic, digits = 4)),
+           Alternative = wilcox.test(Silver ~ Gruppering_ny, data = silver_grouped)$alternative,
+           P_value = as.character( round(wilcox.test(Silver ~ Gruppering_ny, data = silver_grouped)$p.value), digits = 6 )) %>% pivot_longer(., everything(), names_to = "Variable", values_to = "Value") %>% 
+    kable(format = "latex", caption = "Summering av Silver Wilcox-test", booktabs = TRUE, digits = 3) %>% 
+    kable_styling(latex_options = "HOLD_position")
+
+```
+
+I tabell \@ref(tab:wilcox-test-silver-grupperad) kan vi se hur det låga p-värde gör att vi förkastar nollhypotesen $H_0$, det finns därmed en statistiskt säkerställd skillnad i mängden silver mellan de två perioderna.
+
+
+
+
+\pagebreak
+
+# Slutsats
+
+Vi har i denna studie genomfört olika statistiska test för att avgöra om skillnaderna mellan olika grupperingar föreligger. I båda huvudfrågor har vi använt oss av såväl parametriska som icke-parametriska test där vi kunnat statistiskt säkerställa att skillnader mellan grupperingarna förelåg.

@@ -1,0 +1,152 @@
+---
+title: " "
+output:
+  bookdown::pdf_document2:
+    toc-title: ""
+    number_sections: true
+    toc: false
+    title_page: false
+    raggedright: true
+geometry: "left = 2.5cm, right = 2cm, top = 2cm, bottom = 2cm"
+fontsize: 12pt
+header-includes:
+  - \usepackage{float}
+  - \usepackage{sectsty}
+  - \usepackage{paralist}
+  - \usepackage{setspace}\spacing{1.5}
+  - \usepackage{fancyhdr}
+  - \usepackage{lastpage}
+  - \usepackage{dcolumn}
+  - \usepackage{natbib}\bibliographystyle{agsm}
+  - \usepackage[nottoc, numbib]{tocbibind}
+  - \usepackage[document]{ragged2e}
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tinytex.verbose = TRUE)
+```
+
+\allsectionsfont{\centering}
+\subsectionfont{\raggedright}
+\subsubsectionfont{\raggedright}
+
+\pagenumbering{gobble}
+
+\begin{centering}
+
+\vspace{3cm}
+
+```{r uni_logo, echo=F, out.width="50%"}
+knitr::include_graphics("img/uniedlogo.png")
+```
+
+\vspace{1cm}
+
+\Large
+{\bf Inlämning 3}
+
+\normalsize
+{STAA42}
+
+\vspace{1cm}
+
+\Large
+
+\doublespacing
+
+
+\normalsize
+\singlespacing
+Av
+
+\vspace{0.5 cm}
+
+\Large
+{Croneborg, Claes \\
+     Feilberg, Victor \\
+     Klingspor, Christian-Fredrik}
+
+\vspace{1.5 cm}
+
+
+\vspace{1.5 cm}
+
+\normalsize
+maj 2023
+
+\end{centering}
+
+<!-- Här är sidan för om man skall ha med abstract, hoppa annars över till table of contents nedan -->
+
+<!-- \newpage -->
+
+
+<!-- \begin{centering} -->
+
+<!-- {\bf Abstract} -->
+
+<!-- \end{centering} -->
+
+<!-- \spacing{1.5} -->
+
+\pagebreak
+
+
+\pagenumbering{roman}
+\centering
+\raggedright
+\newpage
+\renewcommand{\contentsname}{Innehållsförteckning}
+\tableofcontents
+\pagebreak
+\justifying
+
+<!-- HÄR LÄGGS DE SEPARATA FILERNA SAMMAN  -->
+
+<!-- \newpage -->
+
+<!-- ```{r acknowledgments, child='acknowledgments.Rmd'} -->
+<!-- ``` -->
+
+\pagenumbering{arabic}
+\newpage
+
+```{r intro, child = 'fraga_1.Rmd'}
+```
+
+
+\pagebreak
+\newpage
+
+```{r methods, child = 'fraga_2.Rmd'}
+```
+
+<!-- \newpage -->
+
+<!-- ```{r results, child = 'results.Rmd'} -->
+<!-- ``` -->
+
+<!-- \newpage -->
+
+<!-- ```{r discussion, child = 'discussion.Rmd'} -->
+<!-- ``` -->
+
+<!-- \newpage -->
+
+<!-- ```{r conclusion, child = 'conclusion.Rmd'} -->
+<!-- ``` -->
+
+<!-- \newpage -->
+
+<!-- ```{r biblio, child = 'bibliography.Rmd'} -->
+<!-- ``` -->
+
+<!-- \newpage -->
+
+<!-- ```{r appendix, child = 'appendix.Rmd'} -->
+<!-- ``` -->
+
+
+
